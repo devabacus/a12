@@ -30,6 +30,7 @@ services:
       retries: 5
     restart: on-failure
     image: postgres:15
+    platform: linux/arm64
     labels:
       - "traefik.enable=false" # We typically don't expose databases via HTTP.
     ports:
@@ -48,6 +49,7 @@ services:
   serverpod:
     restart: on-failure
     image: ghcr.io/${GHCR_ORG}/a12_server:latest
+    platform: linux/arm64
     environment:
       - SERVERPOD_DATABASE_PASSWORD
       - SERVERPOD_DATABASE_HOST
