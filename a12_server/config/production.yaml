@@ -30,9 +30,9 @@ database:
   requireSsl: false
   isUnixSocket: false
 
-# This is the setup for Redis.
-redis:
-  enabled: false
+# This is the setup for Redis - ПОЛНОСТЬЮ УДАЛЕНА для отключения
+# redis:
+#   enabled: false
 
 maxRequestSize: 524288 # The maximum size of requests allowed in bytes
 
