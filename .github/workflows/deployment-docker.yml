@@ -15,9 +15,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  # maybe use GITHUB_REPOSITORY_OWNER variable instead of hardcoding the
-  # organization. Maybe this part "../../../../../../templates/serverpod_templates/github/workflows"could be included in the make file and asked
-  # the user what they want to use.
   # TODO Update with your GitHub username or organization
   GHCR_ORG: "devabacus"
 
@@ -59,12 +56,9 @@ jobs:
           context: ./a12_server
           file: ./a12_server/Dockerfile.prod
           push: true
-          # TODO This same value is used in docker-compose.production.yaml too,
-          #  maybe it should be an environment variable
           tags: ghcr.io/${{ env.GHCR_ORG }}/a12_server:latest
           labels: ${{ steps.meta.outputs.labels }}
-          # This determines which hardware platforms the image will run on
-          # further details: https://docs.docker.com/build/building/multi-platform/
+          # Support multiple platforms including amd64 for GitHub Actions runner
           platforms: linux/amd64, linux/arm/v7, linux/arm64/v8
 
   deploy:
@@ -98,6 +92,12 @@ jobs:
 
       - name: List files in the directory
         run: ls -la ./a12_server/
+
+      - name: Prepare volumes
+        run: |
+          docker volume create a12_data || true
+        env:
+          DOCKER_HOST: "ssh://${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
 
       - name: Run docker-compose
         run: |
@@ -164,6 +164,44 @@ jobs:
           SERVERPOD_MAX_REQUEST_SIZE: ${{ secrets.SERVERPOD_MAX_REQUEST_SIZE }}
           # The token used to connect with insights must be at least 20 chars
           SERVERPOD_SERVICE_SECRET: ${{ secrets.SERVERPOD_SERVICE_SECRET }}
+
+      - name: Wait for containers to start
+        run: |
+          echo "Waiting for containers to initialize..."
+          sleep 30
+        env:
+          DOCKER_HOST: "ssh://${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
+
+      - name: Check container status and logs
+        if: always()
+        run: |
+          echo "=== Container Status ==="
+          docker compose -f ./a12_server/docker-compose.production.yaml ps
+          echo ""
+          echo "=== PostgreSQL Logs ==="
+          docker compose -f ./a12_server/docker-compose.production.yaml logs postgres || echo "Failed to get postgres logs"
+          echo ""
+          echo "=== Serverpod Logs ==="
+          docker compose -f ./a12_server/docker-compose.production.yaml logs serverpod || echo "Failed to get serverpod logs"
+          echo ""
+          echo "=== Traefik Logs ==="
+          docker compose -f ./a12_server/docker-compose.production.yaml logs traefik || echo "Failed to get traefik logs"
+          echo ""
+          echo "=== All Containers ==="
+          docker ps -a
+          echo ""
+          echo "=== Docker Volumes ==="
+          docker volume ls
+        env:
+          DOCKER_HOST: "ssh://${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
+
+      - name: Test database connection
+        if: always()
+        run: |
+          echo "=== Testing database connection ==="
+          docker compose -f ./a12_server/docker-compose.production.yaml exec -T postgres pg_isready -U ${{ secrets.SERVERPOD_DATABASE_USER }} -d ${{ secrets.SERVERPOD_DATABASE_NAME }} || echo "Database connection test failed"
+        env:
+          DOCKER_HOST: "ssh://${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
 
       - name: cleanup
         run: rm -rf ~/.ssh

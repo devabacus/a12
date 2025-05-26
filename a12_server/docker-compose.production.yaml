@@ -22,29 +22,27 @@ services:
     networks:
       - serverpod-network
 
-  postgres:
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: on-failure
-    image: postgres:15
-    platform: linux/arm64
-    labels:
-      - "traefik.enable=false" # We typically don't expose databases via HTTP.
-    ports:
-      # Bind the Postgres port to localhost only so it isn't exposed externally,
-      # while still allowing connections from the host machine.
-      - "127.0.0.1:5432:5432"
-    environment:
-      - POSTGRES_USER
-      - POSTGRES_DB
-      - POSTGRES_PASSWORD
-    volumes:
-      - a12_data:/var/lib/postgresql/data
-    networks:
-      - serverpod-network
+postgres:
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+    interval: 10s
+    timeout: 5s
+    retries: 10
+    start_period: 30s
+  restart: unless-stopped
+  image: postgres:15
+  labels:
+    - "traefik.enable=false"
+  ports:
+    - "127.0.0.1:5432:5432"
+  environment:
+    - POSTGRES_USER=${POSTGRES_USER}
+    - POSTGRES_DB=${POSTGRES_DB}
+    - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  volumes:
+    - a12_data:/var/lib/postgresql/data
+  networks:
+    - serverpod-network
 
   serverpod:
     restart: on-failure
